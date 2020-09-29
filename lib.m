@@ -136,141 +136,8 @@ FindCurve := function(pol,m,Q)
 end function;
 
 
-// EllCurve
-// INPUT: a polygon pol defining an elliptic curve
-// OUTPUT: the elliptic curve FindCurve(pol,Width(pol),Rationals())
-
-EllCurve := function(pol)
- m := Width(pol);
- Q := Rationals();
- C := ProjectiveClosure(FindCurve(pol,m,Q));
- pts := Points(C) diff SingularPoints(C);
- if #pts ne 0 then
-  p := (Points(C) diff SingularPoints(C))[1];
-  return MinimalModel(EllipticCurve(C,p));
- end if;
- return MinimalModel(EllipticCurve(C));
-end function;
-
-
-
-CheckPol := function(pol,K)
- m := Numerator(Width(pol));
- f := FindCurves(pol,m,K)[1];
- return pol eq NPolytope(f);
-end function;
-
-
-
-AnalyzeCurve := function(f)
- R := Parent(f);
- A := Spec(R);
- C := Curve(A,f);
- return C,Genus(C);
-end function;
-
-
-
-VerticalRank := function(ll)
- R := Parent(ll[1]);
- K := BaseRing(R);
- n := #[f : f in Factorisation(ll[1]) | #Monomials(f[1]) ne 1]; 
- for i in K do
-  n := n + #[f : f in Factorisation(ll[2]+i*ll[1]) | #Monomials(f[1]) ne 1] - 1;
- end for;
- return n;
-end function;
-
-
-
-IsInSimplex := function(pol)
- n := Dimension(pol);
- ver := Vertices(pol);
- ra := Rays(NormalFan(pol));
- np := NumberOfPoints(pol);
- H := [HalfspaceToPolyhedron(v,Min([m*v : m in ver])) : v in ra];
- L := [&meet S : S in Subsets(Set(H),n+1) | 
-  IsPolytope(&meet S) and #Points(&meet S) eq np];
- if #L gt 0 then return true,L; end if;
- return false;
-end function;
-
-
-BoundaryContribution := function(X)
- f := Equation(X);
- k := BaseRing(Parent(f));
- _<t> := PolynomialRing(k);
- cf,mon := CoefficientsAndMonomials(f);
- pol := Polytope([Exponents(m) : m in mon]);
- A := Ambient(pol);
- lis := [];
-  for F in Facets(pol) do
-   d := Numerator(Volume(F));
-   cc := [cf[i] : i in [1..#cf] | A!Exponents(mon[i]) in F];
-   mm := [A!Exponents(mon[i]) : i in [1..#cf] | A!Exponents(mon[i]) in F];
-   u := PrimitiveLatticeVector(mm[#mm] - mm[1]);
-   ind := [n : n in [0..d] | mm[1] + n*u in mm];
-   Append(~lis,&+[cc[i]*t^ind[i] : i in [1..#cc]]);
-  end for;
- return(&+[#Roots(g) : g in lis]);
-end function;
-
-
-TorusPoints := function(X);
- return #[P : P in Points(X) | 0 notin Eltseq(P)] - 1;
-end function;
-
-
-ExceptionalPoints := function(X);
- A := Ambient(X);
- n := Dimension(A);
- p := A![1 : i in [1..n]];
- if not IsOrdinarySingularity(X,p) 
-  then return false;
-  else return #[C : C in PrimeComponents(TangentCone(X,p)) | Degree(C) eq 1];
- end if;
-end function;
-
-
-TotalPoints := function(X,p);
- X := ChangeRing(X,GF(p));
- A := Ambient(X);
- n := Dimension(A);
- p := A![1 : i in [1..n]];
- if not IsOrdinarySingularity(X,p) 
-  then return 0;
-  else return #[C : C in PrimeComponents(TangentCone(X,p)) | Degree(C) eq 1]
- + BoundaryContribution(X) + TorusPoints(X);
- end if;
-end function;
-
-
-GoodPrimes := function(X,n);
- gp  := [];
- for p in PrimesInInterval(3,n) do
-  C := ChangeRing(X,GF(p));
-  if IsIrreducible(Equation(C)) and Genus(C) eq 1 then Append(~gp,p); 
-  end if;
- end for;
- return gp;
-end function;
-
-
-TestNL := function(X,n);
- gp := GoodPrimes(X,n);
- if #gp lt 2 then return 0;
- else 
- lis := [];
- for p in gp do
-  C := ChangeRing(X,GF(p));
-  if not TotalPoints(C,p) eq 0 then Append(~lis,TotalPoints(C,p));
-  end if;
- end for;
- end if;
- return Gcd(lis);
-end function;
-
-
+// Some functions user to order the
+// rays of a two-dimensional fan
 
 Ang := function(a,b)
  a := Eltseq(a);
@@ -309,7 +176,9 @@ ToricFromRays := function(ra,Q)
 end function;
 
 
-// imat(X) = the intersection matrix of X
+// imat
+// INPUT: a toric surface or a sequence of rays
+// OUTPUT: the intersection matrix of the toric surface
 
 imat := function(X)
  if Type(X) eq TorVar then
@@ -333,7 +202,9 @@ imat := function(X)
  return M;
 end function;
 
-// qu(M,a,b) = intersection number a.b 
+// qu
+// INPUT: a matrix M, a vector a, a vector b
+// OUTPUT: the intersection number a.M.Transpose(b)
 
 qu := function(M,a,b)
   K := Parent(M[1,1]);
@@ -342,23 +213,12 @@ qu := function(M,a,b)
   return N[1,1];
 end function;
 
-// rr(Q,v) = Riemann-Roch polytope of v
 
-rr := function(M,v);
- n:=Ncols(M);
- m:=Nrows(M);
- L1:=ToricLattice(n);
- L2:=ToricLattice(m);
- f:=hom<L1->L2|Transpose(M)>;
- C:=ZeroCone(L2);
- w:=L2!Eltseq(v);
- P:=ConeToPolyhedron(PositiveQuadrant(L1)) meet Polyhedron(C,f,-w);
- return P;
-end function;
-
-
-// Cre = does a Cremona transform
-// of C based on three singular points
+// Cre
+// INPUT: a plane curve C
+// OUTPUT: the Cremona transform of C 
+// based on three singular points together
+// with the rational map
 
 Cre := function(C);
  pts := SetToSequence(SingularPoints(C));
@@ -377,9 +237,11 @@ Cre := function(C);
 end function;
 
 
-// EllCur = applies a sequence of Cremona 
-// transformations trying to get a plane
-// cubic model
+// EllCur
+// INPUT: a polygon pol
+// OUTPUT: a minimal model E of the elliptic
+// curve C defined by pol together with the
+// map C -> E
 
 EllCur := function(pol);
  C := FindCurve(pol,Width(pol),Rationals());
@@ -413,9 +275,11 @@ end function;
 
 
 
-// OrdFacets = returns the list of 
-// facets of pol ordered according 
-// to the slope of the normal direction
+// OrdFacets
+// INPUT: a polygon pol
+// OUTPUT: the list of facets of pol 
+// ordered according to the increasing 
+// slope of the normal direction
 
 OrdFacets := function(pol)
  F := NormalFan(pol);
@@ -424,17 +288,6 @@ OrdFacets := function(pol)
  return Fa;
 end function;
 
-
-// OrdFacets = returns the list of 
-// facets of pol ordered according 
-// to the slope of the normal direction
-
-OrdFacets := function(pol)
- F := NormalFan(pol);
- ra := Reorder(Rays(F));
- Fa := &cat[[F : F in Facets(pol) | Rays(NormalCone(pol,F))[1] eq p] : p in ra];
- return Fa;
-end function;
 
 
 // PtsCur
@@ -487,9 +340,11 @@ end function;
 
 
 
-// PointFace = computes the intersection
-// of the affine supporting lines of the
-// two facets adjacent to the i-th facet
+// PointFace
+// INPUT: a polygon pol, a positive integer i
+// OUTPUT: the intersection of the affine 
+// supporting lines of the two facets adjacent 
+// to the i-th facet
 
 PointFace := function(pol,i)
  Fa := OrdFacets(pol);
@@ -502,8 +357,11 @@ PointFace := function(pol,i)
  return Points(H[1] meet H[2]);
 end function;
 
-// LinRelPols = linear relations of
-// the sequence of polynomials S
+
+// LinRelPols
+// INPUT: a sequence of polynomials S
+// OUTPUT: the linear relations of 
+// the elements of S
 
 LinRelPols := function(S)
   mm := {};
@@ -624,8 +482,9 @@ end function;
 
 
 
-
-// Calculates the derivative of f specified
+// Der
+// INPUT: a polynomial, a vector
+// OUTPUT: the derivative of f specified
 // by the vector of exponents v
 
 Der := function(f,v)
@@ -638,25 +497,11 @@ Der := function(f,v)
 end function;
 
 
-// Calculate the matrix J_m(S) of the set of 
-// polynomials S up to derivatives of order m
-// and evaluate it at the point p
-
-J := function(S,m,p)
- R := Parent(S[1]);
- p := Eltseq(p);
- lis := [];
- for d in [0..m] do
-  Append(~lis,[[Evaluate(Der(f,Exponents(m)),p) : f in S] : m in MonomialsOfDegree(R,d)]);
- end for;
- return Matrix(&cat lis);
-end function;
 
 
-
-
-// imatX = computes the intersection
-// matrix of X
+// imatX
+// INPUT: a polygon pol
+// OUTPUT: the intersection matrix of X
 
 imatX := function(pol)
  F1 := NormalFan(pol);
@@ -664,11 +509,10 @@ imatX := function(pol)
  return DiagonalJoin(imat(ra1),Matrix(Rationals(),[[-1]]));
 end function;
 
-
-// imatS computes the intersection
-// matrix of the blow-up of at 1 of the
-// resolution of the toric surface given
-// by the normal fan of pol
+// imatS
+// INPUT: a polygon pol
+// OUTPUT: the intersection matrix of 
+// the minimal resolution of X
 
 imatS := function(pol)
  F1 := NormalFan(pol);
@@ -678,11 +522,10 @@ imatS := function(pol)
 end function;
 
 
-
-
-// qua computes A.B modulo 
+// qua
+// INPUT: a vector A, a vector B, a matrix M, a list of vector lis
+// OUTPUT: the intersection product A.M.Transpose(B) modulo 
 // the subspace <E : E in lis>
-// using the intersection matrix M
 
 qua := function(A,B,M,lis)
  K := Rationals();
@@ -701,7 +544,9 @@ qua := function(A,B,M,lis)
 end function;
 
 
-// Computes a Weil divisor on 
+// CinS
+// INPUT: a polygon pol
+// OUTPUT: a Weil divisor on 
 // the minimal resolution of X
 // which is linearly equivalent 
 // to C
@@ -723,9 +568,12 @@ CinS := function(pol)
 end function;
 
 
-// Computes C together with 
-// the prime components of K + C 
-// in the minimal resolution of X
+// AdjSys
+// INPUT: a polygon pol
+// OUTPUT: a Weil divisor C on 
+// the minimal resolution of X 
+// together with the prime components 
+// of K + C 
 
 AdjSys := function(pol)
  m := Width(pol);
@@ -762,7 +610,9 @@ AdjSys := function(pol)
 end function;
 
 
-// Multiplicities of the curves 
+// MultAdjSys
+// INPUT: a polygon pol
+// OUTPUT: the multiplicities of the curves 
 // in K_S + C
 
 MultAdjSys := function(pol)
@@ -773,7 +623,9 @@ MultAdjSys := function(pol)
 end function;
 
 
-// Newton polygons of the curves 
+// NpolsAdjSys
+// INPUT: a polygon pol
+// OUTPUT: the Newton polygons of the curves 
 // in K_S + C
 
 NpolsAdjSys := function(pol)
@@ -784,47 +636,23 @@ NpolsAdjSys := function(pol)
 end function;
 
 
-// Newton polygon of the curve
+// PolsAdjSys:
+// INPUT: a polygon
+// OUTPUT: equations of the curves 
 // in K_S + C
 
-NpolAdjSys := function(pol)
+PolsAdjSys := function(pol)
  m := Width(pol);
  Kpol := Polytope(InteriorPoints(pol));
  f := Equation(FindCurve(Kpol,m-1,Rationals()));
- return NPolytope(f);
+ return [g[1] : g in Factorization(f) | #Monomials(g[1]) gt 1];
 end function;
 
 
-// Mixed volume of a pair of polygons
-
-MixedVolume := function(A,B)
- vA := (Dimension(A)-1)*Volume(A);
- vB := (Dimension(B)-1)*Volume(B);
- vS := (Dimension(A+B)-1)*Volume(A+B);
- return vS-vA-vB;
-end function;
-
-
-// Bilinear form on polygons
-
-quaPol := function(A,B)
- if Dimension(A) eq 1 
-  then 
-   wA := Volume(A); 
-  else 
-   wA := Width(A); 
- end if;
- if Dimension(B) eq 1 
-  then 
-   wB := Volume(B); 
-  else 
-   wB := Width(B); 
- end if;
- return 1/2*MixedVolume(A,B) - wA*wB;
-end function;
-
-
-// imatZ = intersection matrix of Z
+// imatZ
+// INPUT: a polygon pol
+// OUTPUT: the intersection matrix of 
+// the minimal resolution Z of Y
 
 imatZ := function(pol)
  cur := AdjSys(pol);
@@ -843,8 +671,10 @@ imatZ := function(pol)
 end function;
 
 
-// RootLat = root lattice of 
-// (-2)-curves on surface Z
+// RootLat
+// INPUT: a polygon pol
+// OUTPUT: root lattice of 
+// (-2)-curves on the surface Z
 
 RootLat := function(pol)
  cur := AdjSys(pol);
@@ -865,9 +695,11 @@ RootLat := function(pol)
  return CartanName(N);
 end function;
 
-// RootR = root rank of 
-// (-2)-curves on surface Z
 
+// RootR
+// INPUT: a polygon pol
+// OUTPUT: root rank of 
+// (-2)-curves on the surface Z
 
 RootR := function(pol)
  cur := AdjSys(pol);
@@ -888,8 +720,10 @@ RootR := function(pol)
 end function;
 
 
-// imatContr = intersection matrix
-// of contracted curves
+// imatContr
+// INPUT: a polygon pol
+// OUTPUT: intersection matrix
+// of curves in K + C
 
 imatContr := function(pol)
  cur := AdjSys(pol);
@@ -909,7 +743,9 @@ imatContr := function(pol)
 end function;
 
 
-// imatY = intersection matrix of Y
+// imatY
+// INPUT: a polygon pol
+// OUTPUT: the intersection matrix of Y
 
 imatY := function(pol)
  cur := AdjSys(pol);
@@ -925,10 +761,10 @@ imatY := function(pol)
 end function;
 
 
-// MapToY = construct the map
-// Cl(X') -> Cl(Y), where X' is
-// the minimal resolution of X
-
+// MapToY
+// INPUT: a polygon pol
+// OUTPUT: the map Cl(S) -> Cl(Y),
+// where S is the minimal resolution of X
 
 MapToY := function(pol)
  cur := AdjSys(pol);
@@ -947,7 +783,9 @@ MapToY := function(pol)
 end function;
 
 
-// ImgDiv = computes the images in Y
+// ImgDiv
+// INPUT: a polygon pol
+// OUTPUT: the images in Y
 // of the prime invariant divisors 
 // of X and of the exceptional divisor
 
@@ -980,8 +818,9 @@ end function;
 
 
 
-// SearchPoints = search for a side 
-// of the polygon "pol" which corresponds
+// SearchPoints
+// INPUT: a polygon pol
+// OUTPUT: a side of pol which corresponds
 // to a (-1)-curve on X and on Y
 
 SearchPoints := function(pol)
@@ -1000,7 +839,9 @@ SearchPoints := function(pol)
 end function;
 
 
-// Findroots find all the virtual
+// Findroots
+// INPUT: a polygon pol
+// OUTPUT: the virtual
 // (-2)-classes of Z which intersect 
 // non-negatively all the (-2)-curves
 
@@ -1040,7 +881,10 @@ end function;
 
 
 // IsPolyhedralPrime
-// 
+// INPUT: a sequence of roots, their restrictions to C, 
+// the curve C, res(C), a prime p
+// OUTPUT: true if p is polyhedral, false otherwise
+
 
 IsPolyhedralPrime := function(roots,ImgRoots,C,ImgC,p)
  E := ChangeRing(Curve(ImgC),GF(p));
@@ -1063,6 +907,9 @@ end function;
 
 
 // NonPolyhedralPrimes
+// INPUT: a polygon pol, a positive integer n
+// OUTPUT: the non-polyhedral primes
+// associated to pol in the interval [2,n]
 
 NonPolyhedralPrimes := function(pol,n)
  Cl,g := MapToY(pol);
@@ -1078,30 +925,17 @@ NonPolyhedralPrimes := function(pol,n)
  ImgRoots := [&+[Eltseq(v)[i]*B[i] : i in [1..#B]] : v in roots];
  C := g(CinS(pol));
  ImgC := &+[Eltseq(C)[i]*B[i] : i in [1..#B]];
- goodp := {p : p in PrimesInInterval(2,n) | p notin BadPrimes(E) and not IsPolyhedralPrime(roots,ImgRoots,C,ImgC,p)};
- return goodp;
-end function;
-
-
-// This function takes a finite subset
-// of points on an elliptic curve and
-// try to give their coordinates with 
-// respect to a basis of the Mordell-Weil
-// group (if these coordinates are integers
-// of absolute value at most n.
-
-
-ECoord := function(pts,n)
- E := Scheme(Parent(pts[1]));
- gen := Generators(E);
- L := CartesianPower([-n..n],#gen);
- lis := [];
- for k in [1..#pts] do
-  u := [[p : p in v] : v in L | &+[v[i]*gen[i] : i in [1..#gen]] eq pts[k]];
-  if #u ne 0 then 
-   Append(~lis,u[1]);
+ goodp := {};
+ for p in PrimesInInterval(2,n) do
+  if p notin BadPrimes(E) then
+  ls := FindCurves(pol,Width(pol),GF(p));
+   if #ls eq 1 then f := ls[1]; 
+    if NPolytope(f) eq pol and not IsPolyhedralPrime(roots,ImgRoots,C,ImgC,p)
+     then Include(~goodp,p);
+    end if; 
+   end if;
   end if;
  end for;
- return lis;
+ return goodp;
 end function;
 
