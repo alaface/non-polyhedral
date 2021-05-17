@@ -939,3 +939,56 @@ NonPolyhedralPrimes := function(pol,n)
  return goodp;
 end function;
 
+
+// PrimRep
+// INPUT: a a polygon pol
+// OUTPUT: a primitive vector which represents p
+
+PrimRep := function(p)
+ q := Eltseq(p);
+ d := Lcm([Denominator(c) : c in q]);
+ return [d*a : a in q];
+end function;
+
+
+// Bprimes
+// INPUT: a polygon pol
+// OUTPUT: if res(C) has finite order it returns
+// the union of the following subsets of primes:
+// - bad primes for the Newton polygon of C
+// - bad primes for a Weierstrass model E of C
+// - bad primes for the map C -> E
+// - primes for which there are more effective
+// roots than in characteristic 0.
+
+Bprimes := function(pol)
+ E,u := EllCur(pol);
+ Cl,g := MapToY(pol);
+ C := FindCurve(pol,Width(pol),Rationals());
+ A := Ambient(C);
+ f := Equation(C);
+ f := Lcm([Denominator(c) : c in Coefficients(f)])*f;
+ h := map<A->Ambient(E) | [Evaluate(p,[A.1,A.2,1]) : p in DefiningEquations(u)]>;
+ ff := [i : i in [1..#Vertices(pol)] | Volume(OrdFacets(pol)[i]) eq 1];
+ pts := [E!PtsCur(h,f,u,pol,i) : i in ff];
+ B := resC(pol,E,ff,pts);
+ roots := FindRoots(pol);
+ ImgRoots := [&+[Eltseq(v)[i]*B[i] : i in [1..#B]] : v in roots];
+ C := g(CinS(pol));
+ ImgC := &+[Eltseq(C)[i]*B[i] : i in [1..#B]];
+ n := Order(ImgC);
+ if n eq 0 then return false; end if;
+ R := Parent(f);
+ num1 := [Numerator(MonomialCoefficient(f,Monomial(R,Eltseq(m)))) : m in Vertices(NPolytope(f))];
+ bad1 := Set(PrimeDivisors(Lcm(num1)));
+ bad2 := Set(BadPrimes(E));
+ bad3 := Set(&cat[PrimeFactors(Lcm([Denominator(c) : c in Coefficients(g)])) : g in DefiningEquations(u)]);
+ pp1 := [PrimRep(p) : p in ImgRoots];
+ pp2 := [PrimRep(p) : p in [i*ImgC : i in [0..n-1]]];
+ S := {Minors(Matrix([a,b]),2) : a in pp1, b in pp2};
+ num2 := {Gcd([Numerator(u) : u in Eltseq(p)]) : p in S};
+ bad4 := &join{Set(PrimeDivisors(n)) : n in num2 | n ne 0};
+ return bad1 join bad2 join bad3 join bad4;
+end function;
+
+
