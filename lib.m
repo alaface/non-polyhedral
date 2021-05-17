@@ -959,7 +959,8 @@ end function;
 // - bad primes for a Weierstrass model E of C
 // - bad primes for the map C -> E
 // - primes for which there are more effective
-// roots than in characteristic 0.
+// roots than in characteristic 0
+// else it returns false
 
 Bprimes := function(pol)
  E,u := EllCur(pol);
