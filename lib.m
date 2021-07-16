@@ -941,7 +941,7 @@ end function;
 
 
 // PrimRep
-// INPUT: a a polygon pol
+// INPUT: a vector
 // OUTPUT: a primitive vector which represents p
 
 PrimRep := function(p)
@@ -955,7 +955,8 @@ end function;
 // INPUT: a polygon pol
 // OUTPUT: if res(C) has finite order it returns
 // the union of the following subsets of primes:
-// - bad primes for the Newton polygon of C
+// - bad primes for the Newton polygons of C and 
+//   the irreducible components of K + C
 // - bad primes for a Weierstrass model E of C
 // - bad primes for the map C -> E
 // - primes for which there are more effective
@@ -980,7 +981,12 @@ Bprimes := function(pol)
  n := Order(ImgC);
  if n eq 0 then return false; end if;
  R := Parent(f);
+ comp := PolsAdjSys(pol);
  num1 := [Numerator(MonomialCoefficient(f,Monomial(R,Eltseq(m)))) : m in Vertices(NPolytope(f))];
+ for g in comp do
+  f := R!(Lcm([Denominator(c) : c in Coefficients(g)])*g);
+  num1 := num1 cat [Numerator(MonomialCoefficient(f,Monomial(R,Eltseq(m)))) : m in Vertices(NPolytope(f))];
+ end for;
  bad1 := Set(PrimeDivisors(Lcm(num1)));
  bad2 := Set(BadPrimes(E));
  bad3 := Set(&cat[PrimeFactors(Lcm([Denominator(c) : c in Coefficients(g)])) : g in DefiningEquations(u)]);
