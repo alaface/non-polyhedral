@@ -1014,3 +1014,14 @@ Bprimes := function(pol)
  bad4 := &join{Set(PrimeDivisors(n)) : n in num2 | n ne 0};
  return bad1 join bad2 join bad3 join bad4;
 end function;
+
+
+// IsIrr
+// INPUT: a polygon pol
+// OUTPUT: true if the Newton polygons of curves in 
+// K + C are all Minkowski-irreducible
+
+IsIrr := function(pol)
+ lis := [P : P in NpolsAdjSys(pol) | Dimension(P) eq 2];
+ return &and[#MinkowskiDecomposition(P)[1] eq 1 : P in lis];
+end function;
