@@ -906,10 +906,27 @@ IsPolyhedralPrime := function(roots,ImgRoots,C,ImgC,p)
 end function;
 
 
+// PrimRep
+// INPUT: a vector
+// OUTPUT: a primitive vector which represents p
+
+PrimRep := function(p)
+ q := Eltseq(p);
+ d := Lcm([Denominator(c) : c in q]);
+ return [d*a : a in q];
+end function;
+
+
 // NonPolyhedralPrimes
 // INPUT: a polygon pol, a positive integer n
 // OUTPUT: the non-polyhedral primes
-// associated to pol in the interval [2,n]
+// associated to pol in the interval [2,n] 
+// which are not in one of the following subsets
+// - bad primes for the Newton polygons of C and 
+//   the irreducible components of K + C
+// - bad primes for a Weierstrass model E of C
+// - bad primes for the map C -> E
+
 
 NonPolyhedralPrimes := function(pol,n)
  Cl,g := MapToY(pol);
@@ -917,6 +934,17 @@ NonPolyhedralPrimes := function(pol,n)
  A := Ambient(C);
  f := Equation(C);
  E,u := EllCur(pol);
+ R := Parent(f);
+ comp := PolsAdjSys(pol);
+ num1 := [Numerator(MonomialCoefficient(f,Monomial(R,Eltseq(m)))) : m in Vertices(NPolytope(f))];
+ for g in comp do
+  ff := R!(Lcm([Denominator(c) : c in Coefficients(g)])*g);
+  num1 := num1 cat [Numerator(MonomialCoefficient(ff,Monomial(R,Eltseq(m)))) : m in Vertices(NPolytope(ff))];
+ end for;
+ bad1 := Set(PrimeDivisors(Lcm(num1)));
+ bad2 := Set(BadPrimes(E));
+ bad3 := Set(&cat[PrimeFactors(Lcm([Denominator(c) : c in Coefficients(g)])) : g in DefiningEquations(u)]);
+ bad := bad1 join bad2 join bad3 join bad3;
  h := map<A->Ambient(E) | [Evaluate(p,[A.1,A.2,1]) : p in DefiningEquations(u)]>;
  ff := [i : i in [1..#Vertices(pol)] | Volume(OrdFacets(pol)[i]) eq 1];
  pts := [E!PtsCur(h,f,u,pol,i) : i in ff];
@@ -936,18 +964,7 @@ NonPolyhedralPrimes := function(pol,n)
    end if;
   end if;
  end for;
- return goodp;
-end function;
-
-
-// PrimRep
-// INPUT: a vector
-// OUTPUT: a primitive vector which represents p
-
-PrimRep := function(p)
- q := Eltseq(p);
- d := Lcm([Denominator(c) : c in q]);
- return [d*a : a in q];
+ return goodp diff bad;
 end function;
 
 
@@ -997,5 +1014,3 @@ Bprimes := function(pol)
  bad4 := &join{Set(PrimeDivisors(n)) : n in num2 | n ne 0};
  return bad1 join bad2 join bad3 join bad4;
 end function;
-
-
