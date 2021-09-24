@@ -300,6 +300,7 @@ end function;
 // cut out by the i-th facet of the polygon 
 // pol via the map h
 
+
 PtsCur := function(h,f,g,pol,i)
  Fa := OrdFacets(pol);
  R<x,y> := Parent(f);
@@ -879,12 +880,28 @@ FindRoots := function(pol)
 end function;
 
 
+// MainCurves
+// INPUT: a polygon pol
+// OUTPUT: defining polynomials for C 
+// together with the prime components 
+// of K + C in characteristic 0
+
+MainCurves := function(pol)
+ pol := MovePol(pol);
+ Q := Rationals();
+ m := Width(pol);
+ C := FindCurves(pol,m,Q)[1];
+ K<[x]> := Parent(C);
+ Kpol := Polytope(InteriorPoints(pol));
+ f := FindCurves(Kpol,m-1,Q)[1];
+ return [C] cat [K!g[1] : g in Factorization(f) | #Monomials(g[1]) gt 1];
+end function;
+
 
 // IsPolyhedralPrime
 // INPUT: a sequence of roots, their restrictions to C, 
 // the curve C, res(C), a prime p
 // OUTPUT: true if p is polyhedral, false otherwise
-
 
 IsPolyhedralPrime := function(roots,ImgRoots,C,ImgC,p)
  E := ChangeRing(Curve(ImgC),GF(p));
@@ -928,6 +945,7 @@ end function;
 // - bad primes for the map C -> E
 
 
+
 NonPolyhedralPrimes := function(pol,n)
  Cl,g := MapToY(pol);
  C := FindCurve(pol,Width(pol),Rationals());
@@ -944,7 +962,14 @@ NonPolyhedralPrimes := function(pol,n)
  bad1 := Set(PrimeDivisors(Lcm(num1)));
  bad2 := Set(BadPrimes(E));
  bad3 := Set(&cat[PrimeFactors(Lcm([Denominator(c) : c in Coefficients(g)])) : g in DefiningEquations(u)]);
- bad := bad1 join bad2 join bad3 join bad3;
+ cur := MainCurves(pol);
+ bad4 := {};
+ for p in PrimesInInterval(2,n) do
+    if not &and[IsCoercible(PolynomialRing(GF(p),2),g) and IsIrreducible(ChangeRing(g,GF(p))) :  g in cur] then
+   Include(~bad4,p);
+  end if;
+ end for;
+ bad := bad1 join bad2 join bad3 join bad3 join bad4;
  h := map<A->Ambient(E) | [Evaluate(p,[A.1,A.2,1]) : p in DefiningEquations(u)]>;
  ff := [i : i in [1..#Vertices(pol)] | Volume(OrdFacets(pol)[i]) eq 1];
  pts := [E!PtsCur(h,f,u,pol,i) : i in ff];
@@ -1007,12 +1032,20 @@ Bprimes := function(pol)
  bad1 := Set(PrimeDivisors(Lcm(num1)));
  bad2 := Set(BadPrimes(E));
  bad3 := Set(&cat[PrimeFactors(Lcm([Denominator(c) : c in Coefficients(g)])) : g in DefiningEquations(u)]);
+ cur := MainCurves(pol);
+ bad4 := {};
+ for p in PrimesInInterval(2,n) do
+    if not &and[IsCoercible(PolynomialRing(GF(p),2),g) and IsIrreducible(ChangeRing(g,GF(p))) :  g in cur] then
+   Include(~bad4,p);
+  end if;
+ end for;
+ bad := bad1 join bad2 join bad3 join bad3 join bad4;
  pp1 := [PrimRep(p) : p in ImgRoots];
  pp2 := [PrimRep(p) : p in [i*ImgC : i in [0..n-1]]];
  S := {Minors(Matrix([a,b]),2) : a in pp1, b in pp2};
  num2 := {Gcd([Numerator(u) : u in Eltseq(p)]) : p in S};
- bad4 := &join{Set(PrimeDivisors(n)) : n in num2 | n ne 0};
- return bad1 join bad2 join bad3 join bad4;
+ bad5 := &join{Set(PrimeDivisors(n)) : n in num2 | n ne 0};
+ return bad1 join bad2 join bad3 join bad4 join bad5;
 end function;
 
 
@@ -1023,5 +1056,7 @@ end function;
 
 IsIrr := function(pol)
  lis := [P : P in NpolsAdjSys(pol) | Dimension(P) eq 2];
- return &and[#MinkowskiDecomposition(P)[1] eq 1 : P in lis];
+ return &and[#[A : A in MinkowskiDecomposition(P)[1] | Dimension(A) gt 0] eq 1 : P in lis];
 end function;
+
+
